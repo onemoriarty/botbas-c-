@@ -75,13 +75,32 @@ def renew_tor_circuit():
         print(f"Yeni Tor devresi oluşturulamadı: {e}")
         return False
 
-def process_item_function(process_item_url, quantity): # Session removed from arguments
+def get_current_ip(session):
+    try:
+        response = session.get("http://httpbin.org/ip") # Using httpbin to get IP
+        response.raise_for_status()
+        ip_json = json.loads(response.text)
+        return ip_json.get("origin")
+    except requests.exceptions.RequestException as e:
+        print(f"IP adresi kontrol hatası: {e}")
+        return "IP alınamadı"
+
+def process_item_function(process_item_url, quantity):
     url = "https://sosyaldigital.com/action/"
+    session = requests.Session() # New session for each request
+    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'} # Proxies set for the new session
+
+    initial_ip = get_current_ip(session)
+    print(f"Başlangıç IP Adresi: {initial_ip}")
 
     if not renew_tor_circuit():
         print("Tor devresi yenileme başarısız. İşlem durduruluyor.")
         return False
 
+    new_ip_after_circuit_renew = get_current_ip(session)
+    print(f"Yeni IP Adresi (Devre Yenileme Sonrası): {new_ip_after_circuit_renew}")
+    if initial_ip == new_ip_after_circuit_renew:
+        print("UYARI: IP adresi değişmedi devre yenilemeye rağmen!") # Warning if IP didn't change
     headers = rastgele_basliklar()
     params = {
         "ns_action": "freetool_start",
@@ -90,8 +109,7 @@ def process_item_function(process_item_url, quantity): # Session removed from ar
         "freetool[process_item]": process_item_url,
         "freetool[quantity]": quantity
     }
-    session = requests.Session() # New session for each request
-    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'} # Proxies set for the new session
+
     try:
         print("Birinci İstek Gönderiliyor...")
         response = session.post(url, data=params, headers=headers, timeout=15)
