@@ -194,15 +194,15 @@ def process_item_function(process_item_url, quantity):
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
                 elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
-                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR (Durdurma/Kill/Yeniden Başlatma) ve 10 dakika bekleniyor...")  # More descriptive message - reflects drastic method
+                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR (Durdurma/Kill/Yeniden Başlatma)...")  # Removed 10 minute wait message - reflects immediate retry
                     if renew_tor_circuit(session):  # Try renew circuit with drastic method
-                        print("Tor devresi yenilendi. Lütfen 10 dakika sonra tekrar deneyin.")
+                        print("Tor devresi yenilendi. İşlemlere devam ediliyor...") # Immediate retry message
                     else:  # If renew circuit fails, fallback to restart (though renew_tor_circuit now includes restart)
                         print("Tor devresi yenileme BAŞARISIZ (Durdurma/Kill/Yeniden Başlatma). İşlem durduruluyor.") # More specific failure message - reflects drastic method
                         return False # Stop if even drastic method fails, no fallback restart needed here as renew_tor_circuit already includes restart
 
-                    time.sleep(600)  # Wait for 10 minutes (600 seconds) - Increased delay
-                    return False  # Retry after Tor restart and delay
+                    # time.sleep(600) - 10 minute wait REMOVED
+                    return False  # Retry immediately after Tor restart
                 else:
                     print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik veya bilinmeyen hata.")
                     return False
@@ -226,8 +226,8 @@ def freetool_islem(process_item_url, quantity, repeat_count):
     # Session management removed from here
     for _ in range(repeat_count):
         while not process_item_function(process_item_url, quantity):  # Session argument removed
-            print("İşlem başarısız, tekrar deneniyor...")
-            time.sleep(5)  # Kısa bir bekleme süresi eklendi
+            print("İşlem başarısız, tekrar deneniyor...") # Keep retry message as is
+            time.sleep(5)  # Kısa bir bekleme süresi eklendi - Keep short delay between retries
         print("Tekrar sayısı tamamlandı, döngü devam ediyor...")
 
     print("Tüm tekrarlar tamamlandı.")
