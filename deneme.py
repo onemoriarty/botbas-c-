@@ -145,21 +145,7 @@ def process_item_function(process_item_url, quantity):
     session = requests.Session() # New session for each request
     session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'} # Proxies set for the new session
 
-    initial_ip = get_current_ip(session)
-    print(f"Başlangıç IP Adresi (İlk Kontrol): {initial_ip}") # Initial IP check at start
-
-    # Force Tor restart if initial IP is not obtained or Tor is not working correctly from the start
-    if initial_ip == "IP alınamadı":
-        print("UYARI: Başlangıç IP adresi alınamadı. Tor servisi KILL ve yeniden başlatılıyor...")
-        kill_tor() # Try killing tor first
-        restart_tor()
-        clear_cookies_and_cache()
-        initial_ip = get_current_ip(session) # Check again after restart
-        print(f"Yeni Başlangıç IP Adresi (Yeniden Başlatma Sonrası): {initial_ip}")
-        if initial_ip == "IP alınamadı": # If still fails after restart
-             print("KRİTİK HATA: Tor yeniden başlatmaya rağmen IP adresi alınamadı. İşlem durduruluyor.")
-             return False
-
+    # Removed initial IP check at the beginning as per user request
 
     if not renew_tor_circuit(session): # Pass session to renew_tor_circuit
         print("Tor devresi yenileme/yeniden başlatma başarısız. İşlem durduruluyor.")
