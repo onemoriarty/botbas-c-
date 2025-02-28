@@ -91,15 +91,18 @@ def clear_cookies_and_cache():
         print(f"Çerez ve önbellek temizlenirken hata oluştu: {e}")
 
 def renew_tor_circuit(session):
-    max_retries = 5  # Increased retries
+    max_retries = 3  # Reduced retries for this more drastic method
     for retry in range(max_retries):
         initial_ip = get_current_ip(session)
         print(f"Devre yenileme denemesi {retry+1}/{max_retries}: Başlangıç IP: {initial_ip}")  # Log initial IP
         try:
-            with Controller.from_port(port=9051) as controller:
-                controller.authenticate()
-                controller.signal(Signal.NEWNYM)
-            time.sleep(10)  # Wait for circuit to change - Increased wait time significantly
+            print("Tor servisi DURDURULUYOR, KILL ediliyor ve YENİDEN BAŞLATILIYOR...") # User requested drastic method
+            stop_tor()
+            kill_tor() # Kill tor process
+            restart_tor() # Restart tor service
+            clear_cookies_and_cache() # Clear cookies and cache after restart
+            time.sleep(15) # Wait for restart and IP change - Increased wait time
+
             new_ip = get_current_ip(session)
             print(f"Devre yenileme denemesi {retry+1}/{max_retries}: Yeni IP: {new_ip}")  # Log new IP
             if new_ip != initial_ip and new_ip != "IP alınamadı":  # More robust IP check
@@ -110,16 +113,10 @@ def renew_tor_circuit(session):
         except Exception as e:
             print(f"Yeni Tor devresi oluşturulamadı (Deneme {retry+1}/{max_retries}): {e}")
             if retry >= max_retries - 1:  # Only restart tor if max retries reached
-                break  # Break out of retry loop to restart tor
+                break  # Break out of retry loop
 
-    print("Tor devresi yenileme BAŞARISIZ. Tor servisi yeniden başlatılıyor...")
-    if restart_tor():
-        clear_cookies_and_cache()
-        print("Tor servisi yeniden başlatıldı ve çerezler temizlendi.")
-        return True  # Return true after tor restart attempt, process_item_function handles failure if restart also fails
-    else:
-        print("Tor servisi yeniden başlatılamadı. İşlem durduruluyor.")
-        return False
+    print("Tor devresi yenileme BAŞARISIZ (Durdurma/Kill/Yeniden Başlatma). İşlem durduruluyor.") # More specific failure message
+    return False # Indicate failure
 
 
 def get_current_ip(session):
@@ -197,15 +194,12 @@ def process_item_function(process_item_url, quantity):
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
                 elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
-                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR ve 10 dakika bekleniyor...")  # More descriptive message
-                    if renew_tor_circuit(session):  # Try renew circuit first
+                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR (Durdurma/Kill/Yeniden Başlatma) ve 10 dakika bekleniyor...")  # More descriptive message - reflects drastic method
+                    if renew_tor_circuit(session):  # Try renew circuit with drastic method
                         print("Tor devresi yenilendi. Lütfen 10 dakika sonra tekrar deneyin.")
-                    else:  # If renew circuit fails, fallback to restart
-                        print("Tor devresi yenileme BAŞARISIZ, Servis YENİDEN BAŞLATILIYOR ve 10 dakika bekleniyor...")
-                        stop_tor()
-                        restart_tor()
-                        clear_cookies_and_cache()
-                        print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. 10 dakika sonra tekrar deneyin.")  # More descriptive message
+                    else:  # If renew circuit fails, fallback to restart (though renew_tor_circuit now includes restart)
+                        print("Tor devresi yenileme BAŞARISIZ (Durdurma/Kill/Yeniden Başlatma). İşlem durduruluyor.") # More specific failure message - reflects drastic method
+                        return False # Stop if even drastic method fails, no fallback restart needed here as renew_tor_circuit already includes restart
 
                     time.sleep(600)  # Wait for 10 minutes (600 seconds) - Increased delay
                     return False  # Retry after Tor restart and delay
