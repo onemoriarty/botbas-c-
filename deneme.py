@@ -4,8 +4,7 @@ from stem.control import Controller
 import time
 import random
 from fake_useragent import UserAgent
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import json
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -40,23 +39,24 @@ def freetool_islem(process_item, quantity):
                 try:
                     response = session.post(url, data=params, headers=headers, timeout=15)
                     response.raise_for_status()
-                    veri = response.json()
-                    print("Tor üzerinden İlk İstek Yanıtı:", veri)
-                    if veri.get("statu") == True and veri.get("freetool_process_token"):
-                        if veri.get("alert") and veri["alert"].get("statu") == "success":
-                            token = veri["freetool_process_token"]
-                            params["freetool[token]"] = token
-                            response2 = session.post(url, data=params, headers=headers, timeout=15)
-                            response2.raise_for_status()
-                            print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                    try:
+                        veri = response.json()
+                        print("Tor üzerinden İlk İstek Yanıtı:", veri)
+                        if veri.get("statu") == True and veri.get("freetool_process_token"):
+                            if veri.get("alert") and veri["alert"].get("statu") == "success":
+                                token = veri["freetool[process_token]"]
+                                params["freetool[token]"] = token
+                                response2 = session.post(url, data=params, headers=headers, timeout=15)
+                                response2.raise_for_status()
+                                print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                            else:
+                                print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
                         else:
-                            print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
-                    else:
-                        print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
+                            print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
+                    except json.JSONDecodeError:
+                        print("Tor üzerinden geçersiz JSON yanıtı. Ham veri:", response.text)
                 except requests.exceptions.RequestException as e:
                     print(f"Tor üzerinden istek hatası: {e}")
-                except ValueError:
-                    print("Tor üzerinden geçersiz JSON yanıtı.")
                 time.sleep(random.randint(45, 75))  # Rastgele bekleme süresi
     except Exception as e:
         print(f"Tor kontrol portu hatası: {e}")
