@@ -6,13 +6,10 @@ import random
 from fake_useragent import UserAgent
 import json
 import brotli
-import re
-import threading
 import gzip
 from io import BytesIO
 import os
 import subprocess
-import psutil
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -37,14 +34,17 @@ def stop_tor():
     try:
         # Tor PID'ini bulma
         tor_pid = None
-        for proc in psutil.process_iter(['pid', 'name']):
-            if 'tor' in proc.info['name'].lower():
-                tor_pid = proc.info['pid']
+        result = subprocess.run(["ps", "aux"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tor_processes = result.stdout.decode().splitlines()
+
+        for line in tor_processes:
+            if "tor" in line:
+                tor_pid = int(line.split()[1])  # PID'yi al
                 break
         
         if tor_pid:
             # Tor'u durdurma işlemi
-            os.kill(tor_pid, signal.SIGTERM)
+            subprocess.run(['kill', str(tor_pid)], check=True)
             print(f"Tor servisi {tor_pid} PID'si ile durduruldu.")
         else:
             print("Tor servisi bulunamadı.")
