@@ -10,6 +10,8 @@ import re
 import threading
 import gzip
 from io import BytesIO
+import os
+import subprocess
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -30,10 +32,28 @@ def rastgele_basliklar():
         "Sec-Ch-Ua-Platform": '"Windows"'
     }
 
+def restart_tor():
+    try:
+        subprocess.run(['sudo', 'service', 'tor', 'restart'], check=True)
+        print("Tor servisi yeniden başlatıldı.")
+    except subprocess.CalledProcessError as e:
+        print(f"Tor servisi yeniden başlatılamadı: {e}")
+
+def clear_cookies_and_cache():
+    try:
+        os.remove('session.cookies')
+        os.remove('session.cache')
+        print("Çerezler ve önbellek temizlendi.")
+    except FileNotFoundError:
+        print("Çerez veya önbellek dosyası bulunamadı.")
+
 def process_item_function(process_item_url, quantity):
     url = "https://sosyaldigital.com/action/"
 
     try:
+        restart_tor()
+        clear_cookies_and_cache()
+
         with Controller.from_port(port=9051) as controller:
             controller.authenticate()
             controller.signal(Signal.NEWNYM)
@@ -71,8 +91,9 @@ def process_item_function(process_item_url, quantity):
                 print(f"Yanıt: {decompressed_data}")
 
                 if decompressed_data:
-                    if "Geçersiz İstek!" in decompressed_data:
-                        print("Geçersiz İstek! Yeni IP ve oturumla tekrar deneniyor...")
+                    if "Geçersiz İstek!" in decompressed_data or "İşlem Başarılı!" not in decompressed_data:
+                        print("İstek başarısız oldu. Tor yeniden başlatılıyor ve tekrar deneniyor...")
+                        time.sleep(random.randint(300, 600))
                         return False
                     match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
                     if match:
@@ -92,21 +113,30 @@ def process_item_function(process_item_url, quantity):
             except requests.exceptions.RequestException as e:
                 print(f"İstek hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
                 print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
+                os.system('clear')
                 return False
             except json.JSONDecodeError as e:
                 print(f"JSON hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
                 print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
+                os.system('clear')
                 return False
     except Exception as e:
         print(f"Tor hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
+        os.system('clear')
         return False
 
 def freetool_islem(process_item_url, quantity, repeat_count):
-    for _ in range(repeat_count):
-        if not process_item_function(process_item_url, quantity):
-            print("İşlem başarısız, tekrar deneniyor...")
+    try:
+        for _ in range(repeat_count):
+            while not process_item_function(process_item_url, quantity):
+                print("İşlem başarısız, tekrar deneniyor...")
+    except KeyboardInterrupt:
+        print("İşlem durduruldu. Tor servisi durduruluyor ve izler siliniyor...")
+        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True)
+        clear_cookies_and_cache()
+        print("Tor servisi durduruldu ve izler silindi.")
 
-process_item_url = "https://www.youtube.com/live/qrIrwWpMUWI?si=uhWlHOBHYQNFPAUR"
+process_item_url = "https://www.youtube.com/live/qrIrwWpMUWI?si=rmoSFvGJMt6Ytee6"
 quantity = "25"
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
