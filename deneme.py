@@ -108,6 +108,6 @@ def freetool_islem(process_item, quantity):
     for thread in threads:
         thread.join()
 
-process_item = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
+process_item = "https://youtu.be/7Ja_w0vQhd8?si=FKddvwqNEzSqO8Kr"
 quantity = "25"
 freetool_islem(process_item, quantity)
