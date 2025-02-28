@@ -68,7 +68,7 @@ def process_item_function(process_item_url, quantity):
                 else:
                     decompressed_data = response.text
 
-                print(f"Yanıt: {decompressed_data}") # Yanıtı yazdır
+                print(f"Yanıt: {decompressed_data}")
 
                 if decompressed_data:
                     if "Geçersiz İstek!" in decompressed_data:
@@ -81,7 +81,7 @@ def process_item_function(process_item_url, quantity):
                         response2 = session.post(url, data=params, headers=headers, timeout=15)
                         response2.raise_for_status()
                         print("İşlem Başarılı!")
-                        print(f"İkinci Yanıt: {response2.text}") # İkinci yanıtı yazdır
+                        print(f"İkinci Yanıt: {response2.text}")
                         return True
                     else:
                         print("Token bulunamadı. Yeni IP ve oturumla tekrar deneniyor...")
@@ -91,23 +91,22 @@ def process_item_function(process_item_url, quantity):
                     return False
             except requests.exceptions.RequestException as e:
                 print(f"İstek hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
-                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}") # Hata yanıtını yazdır
+                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
                 return False
             except json.JSONDecodeError as e:
                 print(f"JSON hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
-                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}") # Hata yanıtını yazdır
+                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
                 return False
     except Exception as e:
         print(f"Tor hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
         return False
 
-def freetool_islem(process_item_url, quantity):
-    while True:
-        if process_item_function(process_item_url, quantity):
-            time.sleep(random.randint(60, 120))
-        else:
-            time.sleep(random.randint(180, 240))
+def freetool_islem(process_item_url, quantity, repeat_count):
+    for _ in range(repeat_count):
+        if not process_item_function(process_item_url, quantity):
+            print("İşlem başarısız, tekrar deneniyor...")
 
-process_item_url = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
+process_item_url = "https://www.youtube.com/live/qrIrwWpMUWI?si=uhWlHOBHYQNFPAUR"
 quantity = "25"
-freetool_islem(process_item_url, quantity)
+repeat_count = 10
+freetool_islem(process_item_url, quantity, repeat_count)
