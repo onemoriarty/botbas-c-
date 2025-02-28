@@ -75,7 +75,7 @@ def renew_tor_circuit():
         print(f"Yeni Tor devresi oluşturulamadı: {e}")
         return False
 
-def process_item_function(process_item_url, quantity, session):
+def process_item_function(process_item_url, quantity): # Session removed from arguments
     url = "https://sosyaldigital.com/action/"
 
     if not renew_tor_circuit():
@@ -90,6 +90,8 @@ def process_item_function(process_item_url, quantity, session):
         "freetool[process_item]": process_item_url,
         "freetool[quantity]": quantity
     }
+    session = requests.Session() # New session for each request
+    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'} # Proxies set for the new session
     try:
         print("Birinci İstek Gönderiliyor...")
         response = session.post(url, data=params, headers=headers, timeout=15)
@@ -131,12 +133,13 @@ def process_item_function(process_item_url, quantity, session):
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
                 elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
-                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor...")
+                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor ve 10 dakika bekleniyor...") # More descriptive message
                     stop_tor()
                     restart_tor()
                     clear_cookies_and_cache()
-                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. Lütfen tekrar deneyin.")
-                    return False # Retry after Tor restart
+                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. 10 dakika sonra tekrar deneyin.") # More descriptive message
+                    time.sleep(600) # Wait for 10 minutes (600 seconds) - Increased delay
+                    return False # Retry after Tor restart and delay
                 else:
                     print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik veya bilinmeyen hata.")
                     return False
@@ -157,10 +160,9 @@ def process_item_function(process_item_url, quantity, session):
         return False
 
 def freetool_islem(process_item_url, quantity, repeat_count):
-    session = requests.Session()
-    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
+    # Session management removed from here
     for _ in range(repeat_count):
-        while not process_item_function(process_item_url, quantity, session):
+        while not process_item_function(process_item_url, quantity): # Session argument removed
             print("İşlem başarısız, tekrar deneniyor...")
             time.sleep(5) # Kısa bir bekleme süresi eklendi
         print("Tekrar sayısı tamamlandı, döngü devam ediyor...")
