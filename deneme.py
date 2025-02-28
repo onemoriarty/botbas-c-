@@ -14,7 +14,7 @@ def rastgele_basliklar():
     tarayici_bilgileri = {
         "User-Agent": ua.random,
         "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate", # br kaldırıldı
         "Accept-Language": "tr-TR,tr;q=0.9",
         "Referer": "https://sosyaldigital.com/youtube-begeni-hilesi/",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -63,14 +63,18 @@ def worker(process_item, quantity):
             print(f"Worker {worker_name}: Yanıt Kodlaması (Deneme {attempt+1}):", response.encoding)
 
             decompressed_data = None
-            try:
-                if response.headers.get('Content-Encoding') == 'br':
-                    decompressed_data = brotli.decompress(response.content).decode('utf-8')
-                else:
-                    decompressed_data = response.content.decode('utf-8')
-            except brotli.error as e:
-                print(f"Worker {worker_name}: Brotli Decompress Hatası (Deneme {attempt+1}): {e}")
-                decompressed_data = response.content.decode('utf-8', errors='ignore') # Brotli hatasında bile devam et
+            content_encoding = response.headers.get('Content-Encoding', '')
+            if 'br' in content_encoding: # Brotli kontrolü yapılıyor ama decompress denenmiyor
+                print(f"Worker {worker_name}: Yanıt Brotli ile kodlanmış (Deneme {attempt+1}), fakat Brotli decompress devre dışı bırakıldı.")
+                decompressed_data = response.content.decode('utf-8', errors='ignore') # Brotli devre dışı, direkt decode dene
+            elif 'gzip' in content_encoding:
+                try:
+                    decompressed_data = gzip.decompress(response.content).decode('utf-8') # gzip decompression eklendi (eğer gzip gelirse)
+                except Exception as e:
+                    print(f"Worker {worker_name}: Gzip Decompress Hatası (Deneme {attempt+1}): {e}")
+                    decompressed_data = response.content.decode('utf-8', errors='ignore')
+            else:
+                decompressed_data = response.content.decode('utf-8') # Brotli veya gzip değilse normal decode
 
             freetool_process_token = None
             match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
