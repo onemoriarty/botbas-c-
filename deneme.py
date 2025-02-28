@@ -5,15 +5,25 @@ import time
 import random
 from fake_useragent import UserAgent
 import json
+import brotli
 
 def rastgele_basliklar():
     ua = UserAgent()
     tarayici_bilgileri = {
         "User-Agent": ua.random,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": random.choice(["en-US,en;q=0.9", "tr-TR,tr;q=0.9"]),
-        "Referer": random.choice(["https://www.google.com/", "https://www.example.com/"])
+        "Accept-Language": "tr-TR,tr;q=0.9",
+        "Referer": "https://sosyaldigital.com/youtube-begeni-hilesi/",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Origin": "https://sosyaldigital.com",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty",
+        "X-Requested-With": "XMLHttpRequest",
+        "Sec-Ch-Ua": '"Chromium";v="133", "Not(A:Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"'
     }
     return tarayici_bilgileri
 
@@ -41,23 +51,41 @@ def freetool_islem(process_item, quantity):
                     response.raise_for_status()
                     print("Yanıt Başlıkları:", response.headers)
                     print("Yanıt Kodlaması:", response.encoding)
-                    try:
-                        veri = response.json()
-                        print("Tor üzerinden İlk İstek Yanıtı:", veri)
-                        if veri.get("statu") == True and veri.get("freetool_process_token"):
-                            if veri.get("alert") and veri["alert"].get("statu") == "success":
-                                token = veri["freetool[process_token]"]
-                                params["freetool[token]"] = token
-                                response2 = session.post(url, data=params, headers=headers, timeout=15)
-                                response2.raise_for_status()
-                                print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                    if response.headers.get('Content-Encoding') == 'br':
+                        decompressed_data = brotli.decompress(response.content).decode('utf-8')
+                        try:
+                            veri = json.loads(decompressed_data)
+                            print("Tor üzerinden İlk İstek Yanıtı:", veri)
+                            if veri.get("statu") == True and veri.get("freetool_process_token"):
+                                if veri.get("alert") and veri["alert"].get("statu") == "success":
+                                    token = veri["freetool_process_token"]
+                                    params["freetool[token]"] = token
+                                    response2 = session.post(url, data=params, headers=headers, timeout=15)
+                                    response2.raise_for_status()
+                                    print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                                else:
+                                    print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
                             else:
-                                print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
-                        else:
-                            print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
-                    except json.JSONDecodeError:
-                        print("Tor üzerinden geçersiz JSON yanıtı.")
-                        print("Ham Yanıt:", response.text)
+                                print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
+                        except json.JSONDecodeError:
+                            print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", decompressed_data)
+                    else:
+                        try:
+                            veri = response.json()
+                            print("Tor üzerinden İlk İstek Yanıtı:", veri)
+                            if veri.get("statu") == True and veri.get("freetool_process_token"):
+                                if veri.get("alert") and veri["alert"].get("statu") == "success":
+                                    token = veri["freetool_process_token"]
+                                    params["freetool[token]"] = token
+                                    response2 = session.post(url, data=params, headers=headers, timeout=15)
+                                    response2.raise_for_status()
+                                    print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                                else:
+                                    print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
+                            else:
+                                print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
+                        except json.JSONDecodeError:
+                            print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", response.text)
                 except requests.exceptions.RequestException as e:
                     print(f"Tor üzerinden istek hatası: {e}")
                 time.sleep(random.randint(45, 75))  # Rastgele bekleme süresi
@@ -65,6 +93,6 @@ def freetool_islem(process_item, quantity):
         print(f"Tor kontrol portu hatası: {e}")
 
 # Kullanım örneği
-process_item = "https://youtu.be/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
+process_item = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
 quantity = "25"
 freetool_islem(process_item, quantity)
