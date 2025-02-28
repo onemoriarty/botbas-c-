@@ -10,6 +10,7 @@ import re
 import threading
 import gzip
 from io import BytesIO
+import os
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -32,16 +33,13 @@ def rastgele_basliklar():
 
 def worker(process_item, quantity, worker_id):
     url = "https://sosyaldigital.com/action/"
-    max_attempts = 5
-    attempt = 0
 
     while True:
-        attempt += 1
         try:
             with Controller.from_port(port=9051) as controller:
                 controller.authenticate()
                 controller.signal(Signal.NEWNYM)
-                print(f"Worker {worker_id}: Tor IP adresi yenilendi (Deneme {attempt}).")
+                print(f"Worker {worker_id}: Tor IP adresi yenilendi.")
                 session = requests.Session()
                 session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
                 headers = rastgele_basliklar()
@@ -55,9 +53,6 @@ def worker(process_item, quantity, worker_id):
                 try:
                     response = session.post(url, data=params, headers=headers, timeout=15)
                     response.raise_for_status()
-                    print(f"Worker {worker_id}: Yanıt Başlıkları (Deneme {attempt}): {response.headers}")
-                    print(f"Worker {worker_id}: Yanıt Kodlaması (Deneme {attempt}): {response.encoding}")
-
                     content_encoding = response.headers.get('Content-Encoding')
                     decompressed_data = None
 
@@ -65,49 +60,44 @@ def worker(process_item, quantity, worker_id):
                         try:
                             decompressed_data = brotli.decompress(response.content).decode('utf-8')
                         except brotli.error as e:
-                            print(f"Worker {worker_id}: Brotli Decompress Hatası (Deneme {attempt}): {e}")
-                            print(f"Worker {worker_id}: Ham Veri (Deneme {attempt}): {response.content}")
                             decompressed_data = response.content.decode('utf-8', errors='ignore')
                     elif content_encoding == 'gzip':
                         try:
                             with gzip.GzipFile(fileobj=BytesIO(response.content)) as f:
                                 decompressed_data = f.read().decode('utf-8')
                         except Exception as e:
-                            print(f"Worker {worker_id}: Gzip Decompress Hatası (Deneme {attempt}): {e}")
                             decompressed_data = response.content.decode('utf-8', errors='ignore')
                     else:
                         decompressed_data = response.text
 
                     if decompressed_data:
                         if "Geçersiz İstek!" in decompressed_data:
-                            print(f"Worker {worker_id}: Geçersiz İstek! Tekrar deneniyor... (Deneme {attempt})")
-                            time.sleep(random.randint(120, 180))  # Daha uzun bekleme süresi
+                            print(f"Worker {worker_id}: Geçersiz İstek! Yeni IP ve oturumla tekrar deneniyor...")
+                            time.sleep(random.randint(180, 240))
                             continue
                         match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
                         if match:
                             token = match.group(1)
-                            print(f"Worker {worker_id}: freetool_process_token bulundu: {token} (Deneme {attempt})")
                             params["freetool[token]"] = token
                             response2 = session.post(url, data=params, headers=headers, timeout=15)
                             response2.raise_for_status()
-                            print(f"Worker {worker_id}: Tor üzerinden İkinci İstek Yanıtı: {response2.json()} (Deneme {attempt})")
-                            time.sleep(random.randint(45,75))
+                            print(f"Worker {worker_id}: İşlem Başarılı!")
+                            time.sleep(random.randint(60, 120))
                         else:
-                            print(f"Worker {worker_id}: freetool_process_token bulunamadı (Deneme {attempt}).")
-                            time.sleep(random.randint(45,75))
+                            print(f"Worker {worker_id}: Token bulunamadı. Yeni IP ve oturumla tekrar deneniyor...")
+                            time.sleep(random.randint(180, 240))
                     else:
-                        print(f"Worker {worker_id}: Dekompresyon başarısız, ham veri işlenemedi (Deneme {attempt}).")
-                        time.sleep(random.randint(45,75))
+                        print(f"Worker {worker_id}: Dekompresyon başarısız. Yeni IP ve oturumla tekrar deneniyor...")
+                        time.sleep(random.randint(180, 240))
                 except requests.exceptions.RequestException as e:
-                    print(f"Worker {worker_id}: İstek Hatası (Deneme {attempt}): {e}")
-                    time.sleep(random.randint(45,75))
+                    print(f"Worker {worker_id}: İstek hatası. Yeni IP ve oturumla tekrar deneniyor...")
+                    time.sleep(random.randint(180, 240))
                 except json.JSONDecodeError as e:
-                    print(f"Worker {worker_id}: JSON Decode Hatası (Deneme {attempt}): {e}")
-                    print(f"Worker {worker_id}: Ham Veri (Deneme {attempt}): {response.text}")
-                    time.sleep(random.randint(45,75))
+                    print(f"Worker {worker_id}: JSON hatası. Yeni IP ve oturumla tekrar deneniyor...")
+                    time.sleep(random.randint(180, 240))
         except Exception as e:
-            print(f"Worker {worker_id}: Tor Kontrol Portu Hatası (Deneme {attempt}): {e}")
-            time.sleep(random.randint(45,75))
+            print(f"Worker {worker_id}: Tor hatası. Yeni IP ve oturumla tekrar deneniyor...")
+            time.sleep(random.randint(180, 240))
 
 def freetool_islem(process_item, quantity):
     threads = []
@@ -118,6 +108,6 @@ def freetool_islem(process_item, quantity):
     for thread in threads:
         thread.join()
 
-process_item = "https://youtu.be/7Ja_w0vQhd8?si=1NL8eGdLuGiDjggo"
+process_item = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
 quantity = "25"
 freetool_islem(process_item, quantity)
