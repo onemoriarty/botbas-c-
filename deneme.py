@@ -10,7 +10,6 @@ import re
 import threading
 import gzip
 from io import BytesIO
-import queue
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -31,7 +30,7 @@ def rastgele_basliklar():
         "Sec-Ch-Ua-Platform": '"Windows"'
     }
 
-def process_item(process_item, quantity):
+def process_item_function(process_item_url, quantity):
     url = "https://sosyaldigital.com/action/"
 
     try:
@@ -46,7 +45,7 @@ def process_item(process_item, quantity):
                 "ns_action": "freetool_start",
                 "freetool[id]": "1",
                 "freetool[token]": "",
-                "freetool[process_item]": process_item,
+                "freetool[process_item]": process_item_url,
                 "freetool[quantity]": quantity
             }
             try:
@@ -69,6 +68,8 @@ def process_item(process_item, quantity):
                 else:
                     decompressed_data = response.text
 
+                print(f"Yanıt: {decompressed_data}") # Yanıtı yazdır
+
                 if decompressed_data:
                     if "Geçersiz İstek!" in decompressed_data:
                         print("Geçersiz İstek! Yeni IP ve oturumla tekrar deneniyor...")
@@ -80,6 +81,7 @@ def process_item(process_item, quantity):
                         response2 = session.post(url, data=params, headers=headers, timeout=15)
                         response2.raise_for_status()
                         print("İşlem Başarılı!")
+                        print(f"İkinci Yanıt: {response2.text}") # İkinci yanıtı yazdır
                         return True
                     else:
                         print("Token bulunamadı. Yeni IP ve oturumla tekrar deneniyor...")
@@ -89,21 +91,23 @@ def process_item(process_item, quantity):
                     return False
             except requests.exceptions.RequestException as e:
                 print(f"İstek hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
+                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}") # Hata yanıtını yazdır
                 return False
             except json.JSONDecodeError as e:
                 print(f"JSON hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
+                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}") # Hata yanıtını yazdır
                 return False
     except Exception as e:
         print(f"Tor hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
         return False
 
-def freetool_islem(process_item, quantity):
+def freetool_islem(process_item_url, quantity):
     while True:
-        if process_item(process_item, quantity):
+        if process_item_function(process_item_url, quantity):
             time.sleep(random.randint(60, 120))
         else:
             time.sleep(random.randint(180, 240))
 
-process_item = "https://www.youtube.com/live/qrIrwWpMUWI?si=3gcrluOIcYVEW3A0"
+process_item_url = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
 quantity = "25"
-freetool_islem(process_item, quantity)
+freetool_islem(process_item_url, quantity)
