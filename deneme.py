@@ -150,6 +150,8 @@ def freetool_islem(process_item_url, quantity, repeat_count):
             clear_cookies_and_cache()
             print("Tor servisi durduruldu ve izler silindi.")
 
+
+
 process_item_url = "https://youtu.be/7Ja_w0vQhd8?si=o4afyY2k98CCy4m8"
 quantity = "25"
 repeat_count = 10
