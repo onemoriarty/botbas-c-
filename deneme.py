@@ -52,23 +52,27 @@ def freetool_islem(process_item, quantity):
                     print("Yanıt Başlıkları:", response.headers)
                     print("Yanıt Kodlaması:", response.encoding)
                     if response.headers.get('Content-Encoding') == 'br':
-                        decompressed_data = brotli.decompress(response.content).decode('utf-8')
                         try:
-                            veri = json.loads(decompressed_data)
-                            print("Tor üzerinden İlk İstek Yanıtı:", veri)
-                            if veri.get("statu") == True and veri.get("freetool_process_token"):
-                                if veri.get("alert") and veri["alert"].get("statu") == "success":
-                                    token = veri["freetool_process_token"]
-                                    params["freetool[token]"] = token
-                                    response2 = session.post(url, data=params, headers=headers, timeout=15)
-                                    response2.raise_for_status()
-                                    print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                            decompressed_data = brotli.decompress(response.content).decode('utf-8')
+                            try:
+                                veri = json.loads(decompressed_data)
+                                print("Tor üzerinden İlk İstek Yanıtı:", veri)
+                                if veri.get("statu") == True and veri.get("freetool_process_token"):
+                                    if veri.get("alert") and veri["alert"].get("statu") == "success":
+                                        token = veri["freetool_process_token"]
+                                        params["freetool[token]"] = token
+                                        response2 = session.post(url, data=params, headers=headers, timeout=15)
+                                        response2.raise_for_status()
+                                        print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                                    else:
+                                        print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
                                 else:
-                                    print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
-                            else:
-                                print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
-                        except json.JSONDecodeError:
-                            print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", decompressed_data)
+                                    print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
+                            except json.JSONDecodeError:
+                                print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", decompressed_data)
+                        except brotli.error as e:
+                            print(f"Tor kontrol portu hatası: {e}")
+                            print("Sıkıştırılmış Ham Veri:", response.content)
                     else:
                         try:
                             veri = response.json()
