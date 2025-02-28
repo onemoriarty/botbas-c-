@@ -91,6 +91,7 @@ def process_item_function(process_item_url, quantity, session):
         "freetool[quantity]": quantity
     }
     try:
+        print("Birinci İstek Gönderiliyor...")
         response = session.post(url, data=params, headers=headers, timeout=15)
         response.raise_for_status()
         content_encoding = response.headers.get('Content-Encoding')
@@ -110,33 +111,45 @@ def process_item_function(process_item_url, quantity, session):
         else:
             decompressed_data = response.text
 
-        print(f"Yanıt: {decompressed_data}")
+        print(f"Birinci Yanıt: {decompressed_data}")
 
         if decompressed_data:
-            if "Geçersiz İstek!" in decompressed_data or "İşlem Başarılı!" not in decompressed_data:
-                print("İstek başarısız oldu.")
+            try:
+                json_response = json.loads(decompressed_data)
+                if json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "success" and "freetool_process_token" in json_response:
+                    token = json_response.get("freetool_process_token")
+                    params["freetool[token]"] = token
+                    print("Token bulundu, ikinci istek gönderiliyor...")
+                    response2 = session.post(url, data=params, headers=headers, timeout=15)
+                    response2.raise_for_status()
+                    decompressed_data_response2 = response2.text
+                    print(f"İkinci Yanıt: {decompressed_data_response2}")
+                    if "İşlem Başarılı!" in decompressed_data_response2:
+                        print("İşlem Başarılı!")
+                        return True
+                    else:
+                        print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
+                        return False
+                elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
+                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor...")
+                    stop_tor()
+                    restart_tor()
+                    clear_cookies_and_cache()
+                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. Lütfen tekrar deneyin.")
+                    return False # Retry after Tor restart
+                else:
+                    print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik veya bilinmeyen hata.")
+                    return False
+            except json.JSONDecodeError as e:
+                print(f"JSON hatası (Birinci Yanıt): {e}")
                 return False
-            match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
-            if match:
-                token = match.group(1)
-                params["freetool[token]"] = token
-                response2 = session.post(url, data=params, headers=headers, timeout=15)
-                response2.raise_for_status()
-                print("İşlem Başarılı!")
-                print(f"İkinci Yanıt: {response2.text}")
-                return True
-            else:
-                print("Token bulunamadı.")
-                return False
+
         else:
-            print("Dekompresyon başarısız.")
+            print("Birinci Yanıt dekompresyon başarısız.")
             return False
+
     except requests.exceptions.RequestException as e:
         print(f"İstek hatası: {e}")
-        print(f"Hata Yanıtı: {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}")
-        return False
-    except json.JSONDecodeError as e:
-        print(f"JSON hatası: {e}")
         print(f"Hata Yanıtı: {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}")
         return False
     except Exception as e:
@@ -154,7 +167,7 @@ def freetool_islem(process_item_url, quantity, repeat_count):
 
     print("Tüm tekrarlar tamamlandı.")
 
-process_item_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Gerçek bir YouTube URL'si ile değiştirin
+process_item_url = "https://youtu.be/7Ja_w0vQhd8?si=o4afyY2k98CCy4m8" # Gerçek bir YouTube URL'si ile değiştirin
 quantity = "25"
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
