@@ -38,6 +38,17 @@ def restart_tor():
         print("Tor servisi yeniden başlatıldı.")
     except subprocess.CalledProcessError as e:
         print(f"Tor servisi yeniden başlatılamadı: {e}")
+        return False
+    return True
+
+def stop_tor():
+    try:
+        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True)
+        print("Tor servisi durduruldu.")
+    except subprocess.CalledProcessError as e:
+        print(f"Tor servisi durdurulamadı: {e}")
+        return False
+    return True
 
 def clear_cookies_and_cache():
     try:
@@ -51,7 +62,8 @@ def process_item_function(process_item_url, quantity):
     url = "https://sosyaldigital.com/action/"
 
     try:
-        restart_tor()
+        if not restart_tor():
+            return False
         clear_cookies_and_cache()
 
         with Controller.from_port(port=9051) as controller:
@@ -92,7 +104,9 @@ def process_item_function(process_item_url, quantity):
 
                 if decompressed_data:
                     if "Geçersiz İstek!" in decompressed_data or "İşlem Başarılı!" not in decompressed_data:
-                        print("İstek başarısız oldu. Tor yeniden başlatılıyor ve tekrar deneniyor...")
+                        print("İstek başarısız oldu. Tor durduruluyor ve yeniden başlatılıyor...")
+                        if not stop_tor():
+                            return False
                         time.sleep(random.randint(300, 600))
                         return False
                     match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
@@ -132,11 +146,11 @@ def freetool_islem(process_item_url, quantity, repeat_count):
                 print("İşlem başarısız, tekrar deneniyor...")
     except KeyboardInterrupt:
         print("İşlem durduruldu. Tor servisi durduruluyor ve izler siliniyor...")
-        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True)
-        clear_cookies_and_cache()
-        print("Tor servisi durduruldu ve izler silindi.")
+        if stop_tor():
+            clear_cookies_and_cache()
+            print("Tor servisi durduruldu ve izler silindi.")
 
-process_item_url = "https://www.youtube.com/live/qrIrwWpMUWI?si=rmoSFvGJMt6Ytee6"
+process_item_url = "https://www.youtube.com/live/qrIrwWpMUWI?si=-iapZsMRbO_inxLM"
 quantity = "25"
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
