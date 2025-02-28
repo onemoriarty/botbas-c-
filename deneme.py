@@ -64,20 +64,39 @@ def clear_cookies_and_cache():
     except Exception as e:
         print(f"Çerez ve önbellek temizlenirken hata oluştu: {e}")
 
-def renew_tor_circuit():
-    try:
-        with Controller.from_port(port=9051) as controller:
-            controller.authenticate()
-            controller.signal(Signal.NEWNYM)
-        print("Yeni Tor devresi oluşturuldu.")
-        return True
-    except Exception as e:
-        print(f"Yeni Tor devresi oluşturulamadı: {e}")
+def renew_tor_circuit(session):
+    max_retries = 3
+    for retry in range(max_retries):
+        initial_ip = get_current_ip(session)
+        try:
+            with Controller.from_port(port=9051) as controller:
+                controller.authenticate()
+                controller.signal(Signal.NEWNYM)
+            time.sleep(5) # Wait for circuit to change - Increased wait
+            new_ip = get_current_ip(session)
+            if new_ip != initial_ip:
+                print(f"Yeni Tor devresi oluşturuldu. IP adresi değişti: {initial_ip} -> {new_ip}")
+                return True
+            else:
+                print(f"UYARI: IP adresi DEĞİŞMEDİ devre yenileme denemesi {retry+1}/{max_retries}.")
+        except Exception as e:
+            print(f"Yeni Tor devresi oluşturulamadı (Deneme {retry+1}/{max_retries}): {e}")
+            if retry >= max_retries -1: # Only restart tor if max retries reached
+                break # Break out of retry loop to restart tor
+
+    print("Tor devresi yenileme BAŞARISIZ. Tor servisi yeniden başlatılıyor...")
+    if restart_tor():
+        clear_cookies_and_cache()
+        print("Tor servisi yeniden başlatıldı ve çerezler temizlendi.")
+        return True # Return true after tor restart attempt, process_item_function handles failure if restart also fails
+    else:
+        print("Tor servisi yeniden başlatılamadı. İşlem durduruluyor.")
         return False
+
 
 def get_current_ip(session):
     try:
-        response = session.get("http://httpbin.org/ip") # Using httpbin to get IP
+        response = session.get("http://httpbin.org/ip", timeout=10) # Using httpbin to get IP, added timeout
         response.raise_for_status()
         ip_json = json.loads(response.text)
         return ip_json.get("origin")
@@ -93,14 +112,11 @@ def process_item_function(process_item_url, quantity):
     initial_ip = get_current_ip(session)
     print(f"Başlangıç IP Adresi: {initial_ip}")
 
-    if not renew_tor_circuit():
-        print("Tor devresi yenileme başarısız. İşlem durduruluyor.")
+    if not renew_tor_circuit(session): # Pass session to renew_tor_circuit
+        print("Tor devresi yenileme/yeniden başlatma başarısız. İşlem durduruluyor.")
         return False
 
-    new_ip_after_circuit_renew = get_current_ip(session)
-    print(f"Yeni IP Adresi (Devre Yenileme Sonrası): {new_ip_after_circuit_renew}")
-    if initial_ip == new_ip_after_circuit_renew:
-        print("UYARI: IP adresi değişmedi devre yenilemeye rağmen!") # Warning if IP didn't change
+
     headers = rastgele_basliklar()
     params = {
         "ns_action": "freetool_start",
@@ -151,11 +167,16 @@ def process_item_function(process_item_url, quantity):
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
                 elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
-                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor ve 10 dakika bekleniyor...") # More descriptive message
-                    stop_tor()
-                    restart_tor()
-                    clear_cookies_and_cache()
-                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. 10 dakika sonra tekrar deneyin.") # More descriptive message
+                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR ve 10 dakika bekleniyor...") # More descriptive message
+                    if renew_tor_circuit(session): # Try renew circuit first
+                        print("Tor devresi yenilendi. Lütfen 10 dakika sonra tekrar deneyin.")
+                    else: # If renew circuit fails, fallback to restart
+                        print("Tor devresi yenileme BAŞARISIZ, Servis YENİDEN BAŞLATILIYOR ve 10 dakika bekleniyor...")
+                        stop_tor()
+                        restart_tor()
+                        clear_cookies_and_cache()
+                        print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. 10 dakika sonra tekrar deneyin.") # More descriptive message
+
                     time.sleep(600) # Wait for 10 minutes (600 seconds) - Increased delay
                     return False # Retry after Tor restart and delay
                 else:
