@@ -21,9 +21,9 @@ def rastgele_basliklar():
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Encoding": "gzip, deflate, br",
         "Accept-Language": "tr-TR,tr;q=0.9",
-        "Referer": "https://mamafollowers.com/free-youtube-likes/", # Updated Referer
+        "Referer": "https://roxmedya.com.tr/youtube-ucretsiz-begeni/", # Updated Referer
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Origin": "https://mamafollowers.com", # Updated Origin
+        "Origin": "https://roxmedya.com.tr", # Updated Origin
         "Sec-Fetch-Site": "same-origin",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Dest": "empty",
@@ -139,14 +139,14 @@ def get_current_ip(session):
 
 
 def process_item_function(process_item_url, quantity):
-    url = "https://mamafollowers.com/action/" # Updated URL
+    url = "https://roxmedya.com.tr/action/" # Updated URL for roxmedya.com.tr
     session = requests.Session()  # NEW SESSION CREATED HERE - Fresh session for each request
     session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}  # Proxies set for the new session
 
     headers = rastgele_basliklar() # Headers randomized for each request (already present, verified)
     params = {
         "ns_action": "freetool_start",
-        "freetool[id]": "15", # Updated freetool ID to 15 for mamafollowers
+        "freetool[id]": "30", # Updated freetool ID to 30 for roxmedya
         "freetool[token]": "",
         "freetool[process_item]": process_item_url,
         "freetool[quantity]": quantity
@@ -231,7 +231,7 @@ def freetool_islem(process_item_url, quantity, repeat_count):
 
     print("Tüm tekrarlar tamamlandı.")
 
-process_item_url = "https://www.youtube.com/watch?v=7Ja_w0vQhd8"  # Gerçek bir YouTube URL'si ile değiştirin - updated to actual URL format
-quantity = "10" # Updated quantity to 10 as per example
+process_item_url = "https://www.youtube.com/watch?v=8j9bAIq3oJI"  # Gerçek bir YouTube URL'si ile değiştirin - updated to actual URL format
+quantity = "20" # Updated quantity to 20 as per example
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
