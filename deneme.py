@@ -83,6 +83,7 @@ def renew_tor_circuit():
             controller.authenticate()
             controller.signal(Signal.NEWNYM)
         print("Yeni Tor devresi oluşturuldu.")
+        time.sleep(10)  # Tor devresinin aktif olabilmesi için 10 saniye bekleyin.
         return True
     except Exception as e:
         print(f"Yeni Tor devresi oluşturulamadı: {e}")
@@ -175,7 +176,7 @@ def freetool_islem(process_item_url, quantity, repeat_count):
     for _ in range(repeat_count):
         while not process_item_function(process_item_url, quantity, session):
             print("İşlem başarısız, tekrar deneniyor...")
-            time.sleep(5) # Kısa bir bekleme süresi eklendi
+            time.sleep(10) # Daha uzun bekleme süresi
         print("Tekrar sayısı tamamlandı, döngü devam ediyor...")
 
     print("Tüm tekrarlar tamamlandı.")
