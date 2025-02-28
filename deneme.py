@@ -6,6 +6,7 @@ import random
 from fake_useragent import UserAgent
 import json
 import brotli
+import re
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -54,25 +55,19 @@ def freetool_islem(process_item, quantity):
                     if response.headers.get('Content-Encoding') == 'br':
                         try:
                             decompressed_data = brotli.decompress(response.content).decode('utf-8')
-                            try:
-                                veri = json.loads(decompressed_data)
-                                print("Tor üzerinden İlk İstek Yanıtı:", veri)
-                                if veri.get("statu") == True and veri.get("freetool_process_token"):
-                                    if veri.get("alert") and veri["alert"].get("statu") == "success":
-                                        token = veri["freetool_process_token"]
-                                        params["freetool[token]"] = token
-                                        response2 = session.post(url, data=params, headers=headers, timeout=15)
-                                        response2.raise_for_status()
-                                        print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
-                                    else:
-                                        print("Tor üzerinden İlk istekte işlem başarısız oldu: ", veri.get("alert"))
-                                else:
-                                    print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
-                            except json.JSONDecodeError:
-                                print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", decompressed_data)
                         except brotli.error as e:
                             print(f"Tor kontrol portu hatası: {e}")
-                            print("Sıkıştırılmış Ham Veri:", response.content)
+                            decompressed_data = response.content.decode('utf-8', errors='ignore') # hatalı veriyi yok say
+                        match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
+                        if match:
+                            token = match.group(1)
+                            print("freetool_process_token bulundu:", token)
+                            params["freetool[token]"] = token
+                            response2 = session.post(url, data=params, headers=headers, timeout=15)
+                            response2.raise_for_status()
+                            print("Tor üzerinden İkinci İstek Yanıtı:", response2.json())
+                        else:
+                            print("freetool_process_token bulunamadı.")
                     else:
                         try:
                             veri = response.json()
