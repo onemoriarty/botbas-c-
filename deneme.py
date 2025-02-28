@@ -12,6 +12,7 @@ import gzip
 from io import BytesIO
 import os
 import subprocess
+import signal # Import signal for killing process
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -50,6 +51,30 @@ def stop_tor():
         print(f"Tor servisi durdurulamadı: {e.stderr.decode()}")
         return False
     return True
+
+def kill_tor():
+    try:
+        # Find Tor process ID (pid) - this might need adjustment based on your system
+        pid_process = subprocess.run(['pidof', 'tor'], capture_output=True, text=True, check=True)
+        pid = pid_process.stdout.strip()
+        if pid:
+            os.kill(int(pid), signal.SIGKILL) # Send SIGKILL signal to forcefully terminate
+            print(f"Tor process (PID {pid}) killed.")
+            time.sleep(5) # Wait a bit after killing before restart
+            return True
+        else:
+            print("Tor process PID not found.")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"Error finding Tor process PID: {e.stderr.decode()}")
+        return False
+    except ProcessLookupError:
+        print("Tor process not found.") # In case pidof returns but process already exited
+        return False
+    except Exception as e:
+        print(f"Error killing Tor process: {e}")
+        return False
+
 
 def clear_cookies_and_cache():
     cookie_file = 'session.cookies'
@@ -121,7 +146,20 @@ def process_item_function(process_item_url, quantity):
     session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'} # Proxies set for the new session
 
     initial_ip = get_current_ip(session)
-    print(f"Başlangıç IP Adresi: {initial_ip}")
+    print(f"Başlangıç IP Adresi (İlk Kontrol): {initial_ip}") # Initial IP check at start
+
+    # Force Tor restart if initial IP is not obtained or Tor is not working correctly from the start
+    if initial_ip == "IP alınamadı":
+        print("UYARI: Başlangıç IP adresi alınamadı. Tor servisi KILL ve yeniden başlatılıyor...")
+        kill_tor() # Try killing tor first
+        restart_tor()
+        clear_cookies_and_cache()
+        initial_ip = get_current_ip(session) # Check again after restart
+        print(f"Yeni Başlangıç IP Adresi (Yeniden Başlatma Sonrası): {initial_ip}")
+        if initial_ip == "IP alınamadı": # If still fails after restart
+             print("KRİTİK HATA: Tor yeniden başlatmaya rağmen IP adresi alınamadı. İşlem durduruluyor.")
+             return False
+
 
     if not renew_tor_circuit(session): # Pass session to renew_tor_circuit
         print("Tor devresi yenileme/yeniden başlatma başarısız. İşlem durduruluyor.")
