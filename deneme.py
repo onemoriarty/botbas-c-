@@ -12,6 +12,7 @@ import gzip
 from io import BytesIO
 import os
 import subprocess
+import psutil
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -32,21 +33,33 @@ def rastgele_basliklar():
         "Sec-Ch-Ua-Platform": '"Windows"'
     }
 
+def stop_tor():
+    try:
+        # Tor PID'ini bulma
+        tor_pid = None
+        for proc in psutil.process_iter(['pid', 'name']):
+            if 'tor' in proc.info['name'].lower():
+                tor_pid = proc.info['pid']
+                break
+        
+        if tor_pid:
+            # Tor'u durdurma işlemi
+            os.kill(tor_pid, signal.SIGTERM)
+            print(f"Tor servisi {tor_pid} PID'si ile durduruldu.")
+        else:
+            print("Tor servisi bulunamadı.")
+            return False
+    except Exception as e:
+        print(f"Tor servisi durdurulamadı: {e}")
+        return False
+    return True
+
 def restart_tor():
     try:
         subprocess.run(['sudo', 'service', 'tor', 'restart'], check=True, capture_output=True)
         print("Tor servisi yeniden başlatıldı.")
     except subprocess.CalledProcessError as e:
         print(f"Tor servisi yeniden başlatılamadı: {e.stderr.decode()}")
-        return False
-    return True
-
-def stop_tor():
-    try:
-        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True, capture_output=True)
-        print("Tor servisi durduruldu.")
-    except subprocess.CalledProcessError as e:
-        print(f"Tor servisi durdurulamadı: {e.stderr.decode()}")
         return False
     return True
 
