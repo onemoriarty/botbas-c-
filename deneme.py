@@ -122,7 +122,7 @@ def process_item_function(process_item_url, quantity, session):
                     print("Token bulundu, ikinci istek gönderiliyor...")
                     response2 = session.post(url, data=params, headers=headers, timeout=15)
                     response2.raise_for_status()
-                    decompressed_data_response2 = response2.text # İkinci yanıt dekompresyonuna gerek yok, text yeterli
+                    decompressed_data_response2 = response2.text
                     print(f"İkinci Yanıt: {decompressed_data_response2}")
                     if "İşlem Başarılı!" in decompressed_data_response2:
                         print("İşlem Başarılı!")
@@ -130,8 +130,15 @@ def process_item_function(process_item_url, quantity, session):
                     else:
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
+                elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
+                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor...")
+                    stop_tor()
+                    restart_tor()
+                    clear_cookies_and_cache()
+                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. Lütfen tekrar deneyin.")
+                    return False # Retry after Tor restart
                 else:
-                    print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik.")
+                    print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik veya bilinmeyen hata.")
                     return False
             except json.JSONDecodeError as e:
                 print(f"JSON hatası (Birinci Yanıt): {e}")
