@@ -6,10 +6,13 @@ import random
 from fake_useragent import UserAgent
 import json
 import brotli
+import re
+import threading
 import gzip
 from io import BytesIO
 import os
 import subprocess
+import signal  # Import signal for killing process
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -18,9 +21,9 @@ def rastgele_basliklar():
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Encoding": "gzip, deflate, br",
         "Accept-Language": "tr-TR,tr;q=0.9",
-        "Referer": "https://sosyaldigital.com/youtube-begeni-hilesi/",
+        "Referer": "https://mamafollowers.com/free-youtube-likes/", # Updated Referer
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Origin": "https://sosyaldigital.com",
+        "Origin": "https://mamafollowers.com", # Updated Origin
         "Sec-Fetch-Site": "same-origin",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Dest": "empty",
@@ -30,38 +33,48 @@ def rastgele_basliklar():
         "Sec-Ch-Ua-Platform": '"Windows"'
     }
 
-def stop_tor():
-    try:
-        # Tor PID'ini bulma
-        tor_pid = None
-        result = subprocess.run(["ps", "aux"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        tor_processes = result.stdout.decode().splitlines()
-
-        for line in tor_processes:
-            if "tor" in line:
-                tor_pid = int(line.split()[1])  # PID'yi al
-                break
-        
-        if tor_pid:
-            # Tor'u durdurma işlemi
-            subprocess.run(['kill', str(tor_pid)], check=True)
-            print(f"Tor servisi {tor_pid} PID'si ile durduruldu.")
-        else:
-            print("Tor servisi bulunamadı.")
-            return False
-    except Exception as e:
-        print(f"Tor servisi durdurulamadı: {e}")
-        return False
-    return True
-
 def restart_tor():
     try:
         subprocess.run(['sudo', 'service', 'tor', 'restart'], check=True, capture_output=True)
         print("Tor servisi yeniden başlatıldı.")
+        time.sleep(10)  # Wait for Tor service to fully restart - Increased wait
     except subprocess.CalledProcessError as e:
         print(f"Tor servisi yeniden başlatılamadı: {e.stderr.decode()}")
         return False
     return True
+
+def stop_tor():
+    try:
+        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True, capture_output=True)
+        print("Tor servisi durduruldu.")
+    except subprocess.CalledProcessError as e:
+        print(f"Tor servisi durdurulamadı: {e.stderr.decode()}")
+        return False
+    return True
+
+def kill_tor():
+    try:
+        # Find Tor process ID (pid) - this might need adjustment based on your system
+        pid_process = subprocess.run(['pidof', 'tor'], capture_output=True, text=True, check=True)
+        pid = pid_process.stdout.strip()
+        if pid:
+            os.kill(int(pid), signal.SIGKILL)  # Send SIGKILL signal to forcefully terminate
+            print(f"Tor process (PID {pid}) killed.")
+            time.sleep(5)  # Wait a bit after killing before restart
+            return True
+        else:
+            print("Tor process PID not found.")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"Error finding Tor process PID: {e.stderr.decode()}")
+        return False
+    except ProcessLookupError:
+        print("Tor process not found.")  # In case pidof returns but process already exited
+        return False
+    except Exception as e:
+        print(f"Error killing Tor process: {e}")
+        return False
+
 
 def clear_cookies_and_cache():
     cookie_file = 'session.cookies'
@@ -77,33 +90,68 @@ def clear_cookies_and_cache():
     except Exception as e:
         print(f"Çerez ve önbellek temizlenirken hata oluştu: {e}")
 
-def renew_tor_circuit():
+def renew_tor_circuit(session):
+    max_retries = 3  # Reduced retries for this more drastic method
+    for retry in range(max_retries):
+        initial_ip = get_current_ip(session)
+        print(f"Devre yenileme denemesi {retry+1}/{max_retries}: Başlangıç IP: {initial_ip}")  # Log initial IP
+        try:
+            print("Tor servisi DURDURULUYOR, KILL ediliyor ve YENİDEN BAŞLATILIYOR...") # User requested drastic method
+            stop_tor()
+            kill_tor() # Kill tor process
+            restart_tor() # Restart tor service
+            clear_cookies_and_cache() # Clear cookies and cache after restart
+            time.sleep(15) # Wait for restart and IP change - Increased wait time
+
+            new_ip = get_current_ip(session)
+            print(f"Devre yenileme denemesi {retry+1}/{max_retries}: Yeni IP: {new_ip}")  # Log new IP
+            if new_ip != initial_ip and new_ip != "IP alınamadı":  # More robust IP check
+                print(f"Yeni Tor devresi oluşturuldu. IP adresi değişti: {initial_ip} -> {new_ip}")
+                time.sleep(30) # ADDED: Short delay after IP change, before next request
+                return True
+            else:
+                print(f"UYARI: IP adresi DEĞİŞMEDİ devre yenileme denemesi {retry+1}/{max_retries}.")
+        except Exception as e:
+            print(f"Yeni Tor devresi oluşturulamadı (Deneme {retry+1}/{max_retries}): {e}")
+            if retry >= max_retries - 1:  # Only restart tor if max retries reached
+                break  # Break out of retry loop
+
+    print("Tor devresi yenileme BAŞARISIZ (Durdurma/Kill/Yeniden Başlatma). İşlem durduruluyor.") # More specific failure message
+    return False # Indicate failure
+
+
+def get_current_ip(session):
     try:
-        with Controller.from_port(port=9051) as controller:
-            controller.authenticate()
-            controller.signal(Signal.NEWNYM)
-        print("Yeni Tor devresi oluşturuldu.")
-        time.sleep(10)  # Tor devresinin aktif olabilmesi için 10 saniye bekleyin.
-        return True
-    except Exception as e:
-        print(f"Yeni Tor devresi oluşturulamadı: {e}")
-        return False
+        response = session.get("http://httpbin.org/ip", timeout=10)  # Using httpbin to get IP, added timeout
+        response.raise_for_status()
+        ip_json = json.loads(response.text)
+        ip_address = ip_json.get("origin")
+        if not ip_address:  # Check if IP is empty or None
+            print("UYARI: IP adresi alınamadı (httpbin.org boş yanıt döndürdü).")
+            return "IP alınamadı"
+        return ip_address
+    except requests.exceptions.RequestException as e:
+        print(f"IP adresi kontrol hatası: {e}")
+        return "IP alınamadı"
+    except json.JSONDecodeError as e:
+        print(f"JSON ayrıştırma hatası (IP kontrolü): {e}")
+        return "IP alınamadı"
 
-def process_item_function(process_item_url, quantity, session):
-    url = "https://sosyaldigital.com/action/"
 
-    if not renew_tor_circuit():
-        print("Tor devresi yenileme başarısız. İşlem durduruluyor.")
-        return False
+def process_item_function(process_item_url, quantity):
+    url = "https://mamafollowers.com/action/" # Updated URL
+    session = requests.Session()  # NEW SESSION CREATED HERE - Fresh session for each request
+    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}  # Proxies set for the new session
 
-    headers = rastgele_basliklar()
+    headers = rastgele_basliklar() # Headers randomized for each request (already present, verified)
     params = {
         "ns_action": "freetool_start",
-        "freetool[id]": "1",
+        "freetool[id]": "15", # Updated freetool ID to 15 for mamafollowers
         "freetool[token]": "",
         "freetool[process_item]": process_item_url,
         "freetool[quantity]": quantity
     }
+
     try:
         print("Birinci İstek Gönderiliyor...")
         response = session.post(url, data=params, headers=headers, timeout=15)
@@ -145,12 +193,15 @@ def process_item_function(process_item_url, quantity, session):
                         print("İkinci istek başarısız oldu: İşlem Başarılı! yanıtı alınamadı.")
                         return False
                 elif json_response.get("statu") == True and json_response.get("alert", {}).get("statu") == "danger" and "Bu ücretsiz aracı yakın zamanda kullandınız" in json_response.get("alert", {}).get("text", ""):
-                    print("Hata: Çok sık istek yapıldı. Tor servisi yeniden başlatılıyor...")
-                    stop_tor()
-                    restart_tor()
-                    clear_cookies_and_cache()
-                    print("Tor servisi yeniden başlatıldı ve çerezler temizlendi. Lütfen tekrar deneyin.")
-                    return False # Retry after Tor restart
+                    print("Hata: Çok sık istek yapıldı. Tor devresi YENİLENİYOR (Durdurma/Kill/Yeniden Başlatma)...")
+                    if renew_tor_circuit(session):  # Try renew circuit with drastic method
+                        print("Tor devresi yenilendi. İşlemlere devam ediliyor...")
+                    else:  # If renew circuit fails, fallback to restart (though renew_tor_circuit now includes restart)
+                        print("Tor devresi yenileme BAŞARISIZ (Durdurma/Kill/Yeniden Başlatma). İşlem durduruluyor.")
+                        return False
+
+                    # time.sleep(600) - 10 minute wait REMOVED
+                    return False  # Retry immediately after Tor restart
                 else:
                     print("Birinci istek başarısız oldu: statu veya alert.statu veya token eksik veya bilinmeyen hata.")
                     return False
@@ -164,24 +215,23 @@ def process_item_function(process_item_url, quantity, session):
 
     except requests.exceptions.RequestException as e:
         print(f"İstek hatası: {e}")
-        print(f"Hata Yanıtı: {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}")
+        print(f"Hata Yanıtı (Tam Metin): {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}") # Log full response text here
         return False
     except Exception as e:
         print(f"Bilinmeyen Hata: {e}")
         return False
 
 def freetool_islem(process_item_url, quantity, repeat_count):
-    session = requests.Session()
-    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
+    # Session management removed from here
     for _ in range(repeat_count):
-        while not process_item_function(process_item_url, quantity, session):
-            print("İşlem başarısız, tekrar deneniyor...")
-            time.sleep(10) # Daha uzun bekleme süresi
+        while not process_item_function(process_item_url, quantity):  # Session argument removed
+            print("İşlem başarısız, tekrar deneniyor...") # Keep retry message as is
+            time.sleep(5)  # Kısa bir bekleme süresi eklendi - Keep short delay between retries
         print("Tekrar sayısı tamamlandı, döngü devam ediyor...")
 
     print("Tüm tekrarlar tamamlandı.")
 
-process_item_url = "https://youtu.be/7Ja_w0vQhd8?si=o4afyY2k98CCy4m8" # Gerçek bir YouTube URL'si ile değiştirin
-quantity = "25"
+process_item_url = "https://www.youtube.com/watch?v=7Ja_w0vQhd8"  # Gerçek bir YouTube URL'si ile değiştirin - updated to actual URL format
+quantity = "10" # Updated quantity to 10 as per example
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
