@@ -34,125 +34,127 @@ def rastgele_basliklar():
 
 def restart_tor():
     try:
-        subprocess.run(['sudo', 'service', 'tor', 'restart'], check=True)
+        subprocess.run(['sudo', 'service', 'tor', 'restart'], check=True, capture_output=True)
         print("Tor servisi yeniden başlatıldı.")
     except subprocess.CalledProcessError as e:
-        print(f"Tor servisi yeniden başlatılamadı: {e}")
+        print(f"Tor servisi yeniden başlatılamadı: {e.stderr.decode()}")
         return False
     return True
 
 def stop_tor():
     try:
-        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True)
+        subprocess.run(['sudo', 'service', 'tor', 'stop'], check=True, capture_output=True)
         print("Tor servisi durduruldu.")
     except subprocess.CalledProcessError as e:
-        print(f"Tor servisi durdurulamadı: {e}")
+        print(f"Tor servisi durdurulamadı: {e.stderr.decode()}")
         return False
     return True
 
 def clear_cookies_and_cache():
+    cookie_file = 'session.cookies'
+    cache_file = 'session.cache'
     try:
-        os.remove('session.cookies')
-        os.remove('session.cache')
+        if os.path.exists(cookie_file):
+            os.remove(cookie_file)
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
         print("Çerezler ve önbellek temizlendi.")
     except FileNotFoundError:
         print("Çerez veya önbellek dosyası bulunamadı.")
+    except Exception as e:
+        print(f"Çerez ve önbellek temizlenirken hata oluştu: {e}")
 
-def process_item_function(process_item_url, quantity):
-    url = "https://sosyaldigital.com/action/"
-
+def renew_tor_circuit():
     try:
-        if not restart_tor():
-            return False
-        clear_cookies_and_cache()
-
         with Controller.from_port(port=9051) as controller:
             controller.authenticate()
             controller.signal(Signal.NEWNYM)
-            print("Yeni Tor devresi oluşturuldu.")
-            session = requests.Session()
-            session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
-            headers = rastgele_basliklar()
-            params = {
-                "ns_action": "freetool_start",
-                "freetool[id]": "1",
-                "freetool[token]": "",
-                "freetool[process_item]": process_item_url,
-                "freetool[quantity]": quantity
-            }
-            try:
-                response = session.post(url, data=params, headers=headers, timeout=15)
-                response.raise_for_status()
-                content_encoding = response.headers.get('Content-Encoding')
-                decompressed_data = None
-
-                if content_encoding == 'br':
-                    try:
-                        decompressed_data = brotli.decompress(response.content).decode('utf-8')
-                    except brotli.error as e:
-                        decompressed_data = response.content.decode('utf-8', errors='ignore')
-                elif content_encoding == 'gzip':
-                    try:
-                        with gzip.GzipFile(fileobj=BytesIO(response.content)) as f:
-                            decompressed_data = f.read().decode('utf-8')
-                    except Exception as e:
-                        decompressed_data = response.content.decode('utf-8', errors='ignore')
-                else:
-                    decompressed_data = response.text
-
-                print(f"Yanıt: {decompressed_data}")
-
-                if decompressed_data:
-                    if "Geçersiz İstek!" in decompressed_data or "İşlem Başarılı!" not in decompressed_data:
-                        print("İstek başarısız oldu. Tor durduruluyor ve yeniden başlatılıyor...")
-                        if not stop_tor():
-                            return False
-                        time.sleep(random.randint(300, 600))
-                        return False
-                    match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
-                    if match:
-                        token = match.group(1)
-                        params["freetool[token]"] = token
-                        response2 = session.post(url, data=params, headers=headers, timeout=15)
-                        response2.raise_for_status()
-                        print("İşlem Başarılı!")
-                        print(f"İkinci Yanıt: {response2.text}")
-                        return True
-                    else:
-                        print("Token bulunamadı. Yeni IP ve oturumla tekrar deneniyor...")
-                        return False
-                else:
-                    print("Dekompresyon başarısız. Yeni IP ve oturumla tekrar deneniyor...")
-                    return False
-            except requests.exceptions.RequestException as e:
-                print(f"İstek hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
-                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
-                os.system('clear')
-                return False
-            except json.JSONDecodeError as e:
-                print(f"JSON hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
-                print(f"Hata Yanıtı: {response.text if 'response' in locals() else 'Yanıt alınamadı'}")
-                os.system('clear')
-                return False
+        print("Yeni Tor devresi oluşturuldu.")
+        return True
     except Exception as e:
-        print(f"Tor hatası: {e}. Yeni IP ve oturumla tekrar deneniyor...")
-        os.system('clear')
+        print(f"Yeni Tor devresi oluşturulamadı: {e}")
+        return False
+
+def process_item_function(process_item_url, quantity, session):
+    url = "https://sosyaldigital.com/action/"
+
+    if not renew_tor_circuit():
+        print("Tor devresi yenileme başarısız. İşlem durduruluyor.")
+        return False
+
+    headers = rastgele_basliklar()
+    params = {
+        "ns_action": "freetool_start",
+        "freetool[id]": "1",
+        "freetool[token]": "",
+        "freetool[process_item]": process_item_url,
+        "freetool[quantity]": quantity
+    }
+    try:
+        response = session.post(url, data=params, headers=headers, timeout=15)
+        response.raise_for_status()
+        content_encoding = response.headers.get('Content-Encoding')
+        decompressed_data = None
+
+        if content_encoding == 'br':
+            try:
+                decompressed_data = brotli.decompress(response.content).decode('utf-8')
+            except brotli.error as e:
+                decompressed_data = response.content.decode('utf-8', errors='ignore')
+        elif content_encoding == 'gzip':
+            try:
+                with gzip.GzipFile(fileobj=BytesIO(response.content)) as f:
+                    decompressed_data = f.read().decode('utf-8')
+            except Exception as e:
+                decompressed_data = response.content.decode('utf-8', errors='ignore')
+        else:
+            decompressed_data = response.text
+
+        print(f"Yanıt: {decompressed_data}")
+
+        if decompressed_data:
+            if "Geçersiz İstek!" in decompressed_data or "İşlem Başarılı!" not in decompressed_data:
+                print("İstek başarısız oldu.")
+                return False
+            match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
+            if match:
+                token = match.group(1)
+                params["freetool[token]"] = token
+                response2 = session.post(url, data=params, headers=headers, timeout=15)
+                response2.raise_for_status()
+                print("İşlem Başarılı!")
+                print(f"İkinci Yanıt: {response2.text}")
+                return True
+            else:
+                print("Token bulunamadı.")
+                return False
+        else:
+            print("Dekompresyon başarısız.")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"İstek hatası: {e}")
+        print(f"Hata Yanıtı: {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"JSON hatası: {e}")
+        print(f"Hata Yanıtı: {response.text if 'response' in locals() and 'response' in vars() else 'Yanıt alınamadı'}")
+        return False
+    except Exception as e:
+        print(f"Bilinmeyen Hata: {e}")
         return False
 
 def freetool_islem(process_item_url, quantity, repeat_count):
-    try:
-        for _ in range(repeat_count):
-            while not process_item_function(process_item_url, quantity):
-                print("İşlem başarısız, tekrar deneniyor...")
-    except KeyboardInterrupt:
-        print("İşlem durduruldu. Tor servisi durduruluyor ve izler siliniyor...")
-        if stop_tor():
-            clear_cookies_and_cache()
-            print("Tor servisi durduruldu ve izler silindi.")
+    session = requests.Session()
+    session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
+    for _ in range(repeat_count):
+        while not process_item_function(process_item_url, quantity, session):
+            print("İşlem başarısız, tekrar deneniyor...")
+            time.sleep(5) # Kısa bir bekleme süresi eklendi
+        print("Tekrar sayısı tamamlandı, döngü devam ediyor...")
 
+    print("Tüm tekrarlar tamamlandı.")
 
-
-process_item_url = "https://youtu.be/7Ja_w0vQhd8?si=o4afyY2k98CCy4m8"
+process_item_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Gerçek bir YouTube URL'si ile değiştirin
 quantity = "25"
 repeat_count = 10
 freetool_islem(process_item_url, quantity, repeat_count)
