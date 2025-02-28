@@ -31,11 +31,11 @@ def rastgele_basliklar():
 def freetool_islem(process_item, quantity):
     url = "https://sosyaldigital.com/action/"
 
-    try:
-        with Controller.from_port(port=9051) as controller:
-            controller.authenticate()
-            while True:
-                controller.signal(Signal.NEWNYM)
+    for _ in range(10): # 10 kere döngü
+        try:
+            with Controller.from_port(port=9051) as controller:
+                controller.authenticate()
+                controller.signal(Signal.NEWNYM) # Her döngüde yeni Tor bağlantısı
                 print("Tor IP adresi yenilendi.")
                 session = requests.Session()
                 session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
@@ -57,7 +57,7 @@ def freetool_islem(process_item, quantity):
                             decompressed_data = brotli.decompress(response.content).decode('utf-8')
                         except brotli.error as e:
                             print(f"Tor kontrol portu hatası: {e}")
-                            decompressed_data = response.content.decode('utf-8', errors='ignore') # hatalı veriyi yok say
+                            decompressed_data = response.content.decode('utf-8', errors='ignore')
                         match = re.search(r'"freetool_process_token":\s*"([^"]+)"', decompressed_data)
                         if match:
                             token = match.group(1)
@@ -87,9 +87,9 @@ def freetool_islem(process_item, quantity):
                             print("Tor üzerinden geçersiz JSON yanıtı. Ham Veri:", response.text)
                 except requests.exceptions.RequestException as e:
                     print(f"Tor üzerinden istek hatası: {e}")
-                time.sleep(random.randint(45, 75))  # Rastgele bekleme süresi
-    except Exception as e:
-        print(f"Tor kontrol portu hatası: {e}")
+                time.sleep(random.randint(45, 75))
+        except Exception as e:
+            print(f"Tor kontrol portu hatası: {e}")
 
 # Kullanım örneği
 process_item = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
