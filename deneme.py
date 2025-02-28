@@ -39,6 +39,8 @@ def freetool_islem(process_item, quantity):
                 try:
                     response = session.post(url, data=params, headers=headers, timeout=15)
                     response.raise_for_status()
+                    print("Yanıt Başlıkları:", response.headers)
+                    print("Yanıt Kodlaması:", response.encoding)
                     try:
                         veri = response.json()
                         print("Tor üzerinden İlk İstek Yanıtı:", veri)
@@ -54,7 +56,8 @@ def freetool_islem(process_item, quantity):
                         else:
                             print("Tor üzerinden İlk istekte 'freetool_process_token' bulunamadı veya 'statu' false.")
                     except json.JSONDecodeError:
-                        print("Tor üzerinden geçersiz JSON yanıtı. Ham veri:", response.text)
+                        print("Tor üzerinden geçersiz JSON yanıtı.")
+                        print("Ham Yanıt:", response.text)
                 except requests.exceptions.RequestException as e:
                     print(f"Tor üzerinden istek hatası: {e}")
                 time.sleep(random.randint(45, 75))  # Rastgele bekleme süresi
