@@ -10,7 +10,6 @@ import re
 import threading
 import gzip
 from io import BytesIO
-import os
 
 def rastgele_basliklar():
     ua = UserAgent()
@@ -39,7 +38,7 @@ def worker(process_item, quantity, worker_id):
             with Controller.from_port(port=9051) as controller:
                 controller.authenticate()
                 controller.signal(Signal.NEWNYM)
-                print(f"Worker {worker_id}: Tor IP adresi yenilendi.")
+                print(f"Worker {worker_id}: Yeni Tor devresi oluşturuldu.")
                 session = requests.Session()
                 session.proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
                 headers = rastgele_basliklar()
@@ -101,13 +100,13 @@ def worker(process_item, quantity, worker_id):
 
 def freetool_islem(process_item, quantity):
     threads = []
-    for i in range(10):
+    for i in range(1):
         thread = threading.Thread(target=worker, args=(process_item, quantity, f"Worker-{i+1}"))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
 
-process_item = "https://youtu.be/7Ja_w0vQhd8?si=FKddvwqNEzSqO8Kr"
+process_item = "https://googleusercontent.com/youtube.com/3/DuPrA9dWRb4?si=IzkQynxkssoXuzQH"
 quantity = "25"
 freetool_islem(process_item, quantity)
