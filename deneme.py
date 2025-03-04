@@ -14,7 +14,7 @@ import os
 import subprocess
 
 def rastgele_basliklar():
-    ua = UserAgent()
+  ua = UserAgent()
     return {
         "User-Agent": ua.random,
         "Accept": "application/json, text/javascript, */*; q=0.01",
