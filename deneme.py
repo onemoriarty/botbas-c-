@@ -15,7 +15,7 @@ import subprocess
 
 def rastgele_basliklar():
   ua = UserAgent()
-    return {
+  return {
         "User-Agent": ua.random,
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Encoding": "gzip, deflate, br",
@@ -30,7 +30,7 @@ def rastgele_basliklar():
         "Sec-Ch-Ua": '"Chromium";v="133", "Not(A:Brand";v="99"',
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": '"Windows"'
-    }
+  }
 
 def restart_tor():
     try:
